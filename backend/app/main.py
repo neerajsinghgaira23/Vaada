@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Header, HTTPException, Depends, Request
+from fastapi import FastAPI, Header, HTTPException, Depends, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, text
@@ -115,7 +115,7 @@ async def check_promises(db: AsyncSession, business_id: int, today: date):
 
 @app.get("/businesses")
 async def list_businesses(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Business))
+    result = await db.execute(select(Business).order_by(Business.id.asc()))
     businesses = result.scalars().all()
     return [
         {
@@ -1389,4 +1389,80 @@ async def reset_demo_endpoint(
         "message": "Demo data reset successfully",
         "demo_date": today.isoformat(),
     }
+
+
+# ─── Sarvam AI & Cashfree Voice Agent Endpoints ──────────────────────────────
+
+try:
+    from backend.app.voice_agent import VoiceAgent, VoiceSettings
+except ImportError:
+    from app.voice_agent import VoiceAgent, VoiceSettings
+
+voice_agent_instance = VoiceAgent()
+
+
+@app.post("/api/voice-agent/turn")
+async def voice_agent_turn(
+    file: Optional[UploadFile] = File(None),
+    audio: Optional[UploadFile] = File(None),
+    session_id: str = Form("default"),
+    language_code: str = Form("hi-IN"),
+    business_id: int = Depends(get_business_id),
+    db: AsyncSession = Depends(get_db),
+):
+    upload = file or audio
+    if not upload:
+        raise HTTPException(status_code=400, detail="No audio file uploaded")
+    audio_bytes = await upload.read()
+    trans_res = await voice_agent_instance.sarvam.transcribe(
+        audio=audio_bytes,
+        filename=upload.filename or "audio.webm",
+        language_code=language_code,
+    )
+    transcript = trans_res.get("transcript", "")
+    detected_lang = trans_res.get("language_code", language_code)
+
+    turn_res = await voice_agent_instance.handle_turn(
+        session_id=session_id,
+        text=transcript,
+        language_code=detected_lang,
+        business_id=business_id,
+        db=db,
+    )
+    return turn_res
+
+
+@app.post("/api/voice-agent/text")
+async def voice_agent_text(
+    body: dict,
+    business_id: int = Depends(get_business_id),
+    db: AsyncSession = Depends(get_db),
+):
+    text = body.get("text", "")
+    session_id = body.get("session_id", "default")
+    language_code = body.get("language_code", "hi-IN")
+
+    return await voice_agent_instance.handle_turn(
+        session_id=session_id,
+        text=text,
+        language_code=language_code,
+        business_id=business_id,
+        db=db,
+    )
+
+
+@app.get("/api/voice-agent/config")
+async def voice_agent_config(
+    business_id: int = Depends(get_business_id),
+    db: AsyncSession = Depends(get_db),
+):
+    merchants = await voice_agent_instance.get_merchants(business_id, db)
+    return {
+        "accounts": merchants,
+        "mock_mode": voice_agent_instance.s.mock,
+        "max_amount": voice_agent_instance.s.max_amount,
+        "stt_model": voice_agent_instance.s.stt_model,
+        "tts_model": voice_agent_instance.s.tts_model,
+    }
+
 

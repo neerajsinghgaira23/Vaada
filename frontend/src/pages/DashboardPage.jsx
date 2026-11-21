@@ -23,6 +23,7 @@ import {
   Legend 
 } from 'recharts';
 import { fmtMoney, fmtDate, fmtTime, PriorityBadge, ToneDot, PromiseIcons, ActorBadge } from '../components/Badges';
+import VoiceAgentWidget from '../components/VoiceAgentWidget';
 
 export default function DashboardPage({
   dashboard,
@@ -31,6 +32,7 @@ export default function DashboardPage({
   onNavigate,
   onSelectCustomer,
   onAdvanceDays,
+  onRefreshAll,
 }) {
   const kpi = dashboard || {};
 
@@ -138,6 +140,9 @@ export default function DashboardPage({
           </div>
         </div>
       </div>
+
+      {/* Sarvam AI & Cashfree Voice Agent */}
+      <VoiceAgentWidget onRefreshAll={onRefreshAll} />
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

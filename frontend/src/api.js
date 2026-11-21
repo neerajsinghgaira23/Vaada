@@ -37,3 +37,14 @@ export const resetDemo = () => api.post('/demo/reset');
 // Cashfree Payment Links
 export const createPaymentLink = (invoice_id, amount, promise_id = null) =>
   api.post('/links', { invoice_id, amount, promise_id });
+
+// Voice Agent (Sarvam AI + Cashfree)
+export const sendVoiceTurn = (formData) =>
+  api.post('/api/voice-agent/turn', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
+export const sendVoiceText = (text, session_id = 'default', language_code = 'hi-IN') =>
+  api.post('/api/voice-agent/text', { text, session_id, language_code });
+
+export const getVoiceConfig = () => api.get('/api/voice-agent/config');

@@ -195,6 +195,7 @@ export default function App() {
                   onNavigate={setCurrentPage}
                   onSelectCustomer={(id) => setSelectedCustomerId(id)}
                   onAdvanceDays={handleAdvanceDays}
+                  onRefreshAll={refreshCore}
                 />
               )}
 
