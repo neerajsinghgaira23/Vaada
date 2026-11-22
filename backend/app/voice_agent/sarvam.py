@@ -87,7 +87,7 @@ class SarvamClient:
         }
         files = {"file": (filename or "audio.webm", audio, "audio/webm")}
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with httpx.AsyncClient(timeout=8.0) as client:
                 resp = await client.post(
                     f"{self.s.sarvam_base}/speech-to-text",
                     headers=self._headers,
@@ -130,7 +130,7 @@ class SarvamClient:
             "output_audio_codec": "wav",
         }
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with httpx.AsyncClient(timeout=3.5) as client:
                 resp = await client.post(
                     f"{self.s.sarvam_base}/text-to-speech",
                     headers={**self._headers, "Content-Type": "application/json"},
@@ -161,7 +161,7 @@ class SarvamClient:
             "max_tokens": 400,
         }
         try:
-            async with httpx.AsyncClient(timeout=12.0) as client:
+            async with httpx.AsyncClient(timeout=4.5) as client:
                 resp = await client.post(
                     f"{self.s.sarvam_base}{self.s.llm_path}",
                     headers={**self._headers, "Content-Type": "application/json"},

@@ -99,7 +99,7 @@ export default function SettingsPage({ onRefreshAll }) {
   };
 
   const handleResetDemoData = async () => {
-    if (!window.confirm('Reset all demo data back to clean initial state?')) return;
+    if (!window.confirm('This deletes all changes. Continue?')) return;
     setResetting(true);
     setSuccessMsg('');
     setErrorMsg('');

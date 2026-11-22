@@ -1,9 +1,16 @@
 import axios from 'axios';
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-let businessId = 1;
+let businessId = localStorage.getItem('vaada_biz_id')
+  ? parseInt(localStorage.getItem('vaada_biz_id'), 10)
+  : 107;
 
-export function setBusinessId(id) { businessId = id; }
+export function setBusinessId(id) {
+  businessId = id;
+  try {
+    localStorage.setItem('vaada_biz_id', id);
+  } catch (e) {}
+}
 export function getBusinessId() { return businessId; }
 
 const api = axios.create({ baseURL: BASE });

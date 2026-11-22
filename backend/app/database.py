@@ -1,4 +1,5 @@
 import os
+import re
 import socket
 import subprocess
 from pathlib import Path
@@ -11,14 +12,32 @@ _root = Path(__file__).resolve().parent.parent.parent
 load_dotenv(_root / ".env")
 
 
+def get_wsl_ip() -> str | None:
+    try:
+        out = subprocess.check_output(["wsl", "hostname", "-I"], text=True, timeout=2).strip()
+        if out:
+            return out.split()[0]
+    except Exception:
+        pass
+    return None
+
+
 def get_database_url() -> str:
-    url = os.getenv("DATABASE_URL", "postgresql+asyncpg://vaada:vaada123@127.0.0.1:5432/vaadadb")
-    # Normalize localhost to 127.0.0.1 on Windows to avoid IPv6 asyncpg resolution issues
-    return url.replace("@localhost:5432", "@127.0.0.1:5432")
+    url = os.getenv("DATABASE_URL", "postgresql+asyncpg://vaada:vaada123@localhost:5432/vaadadb")
+    wsl_ip = get_wsl_ip()
+    if wsl_ip:
+        # On Windows with WSL, using the direct virtual IP avoids localhost loopback connection drops
+        url = re.sub(r"@(localhost|127\.0\.0\.1):5432", f"@{wsl_ip}:5432", url)
+    return url
 
 
 DATABASE_URL = get_database_url()
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 

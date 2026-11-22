@@ -3,14 +3,26 @@ import { FileText, Filter, UploadCloud, ChevronLeft, ChevronRight, AlertCircle }
 import { getInvoices } from '../api';
 import { fmtMoney, fmtDate, StatusBadge } from '../components/Badges';
 
-export default function InvoicesPage({ onSelectInvoice }) {
-  const [invoices, setInvoices] = useState([]);
-  const [totalCount, setTotalCount] = useState(0);
+export default function InvoicesPage({ onSelectInvoice, currentBizId }) {
+  const [invoices, setInvoices] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vaada_cached_invoices');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
+  const [totalCount, setTotalCount] = useState(() => {
+    try {
+      return parseInt(localStorage.getItem('vaada_cached_invoices_count') || '0', 10);
+    } catch (e) {
+      return 0;
+    }
+  });
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [overdueOnly, setOverdueOnly] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const loadInvoices = () => {
@@ -23,20 +35,28 @@ export default function InvoicesPage({ onSelectInvoice }) {
     };
     getInvoices(params)
       .then((res) => {
-        setInvoices(res.data.items || []);
+        const items = res.data.items || [];
+        setInvoices(items);
         setTotalCount(res.data.total || 0);
         setPages(res.data.pages || 1);
+        setError('');
+        try {
+          localStorage.setItem('vaada_cached_invoices', JSON.stringify(items));
+          localStorage.setItem('vaada_cached_invoices_count', String(res.data.total || items.length));
+        } catch (e) {}
       })
       .catch((err) => {
         console.error('Failed to load invoices', err);
-        setError('Could not load invoices.');
+        if (!localStorage.getItem('vaada_cached_invoices')) {
+          setError('Could not load invoices.');
+        }
       })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     loadInvoices();
-  }, [page, statusFilter, overdueOnly]);
+  }, [page, statusFilter, overdueOnly, currentBizId]);
 
   return (
     <div className="space-y-5">

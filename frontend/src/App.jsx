@@ -3,9 +3,9 @@ import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import CustomerDetailModal from './components/CustomerDetailModal';
 import InvoiceDetailModal from './components/InvoiceDetailModal';
-import { DemoDataBadge } from './components/Badges';
 
 import DashboardPage from './pages/DashboardPage';
+import VoiceAgentPage from './pages/VoiceAgentPage';
 import QueuePage from './pages/QueuePage';
 import CustomersPage from './pages/CustomersPage';
 import InvoicesPage from './pages/InvoicesPage';
@@ -24,22 +24,42 @@ import {
   getEvents,
   getPromises,
   setBusinessId,
+  getBusinessId,
   getHealth,
   advanceDemoDate,
 } from './api';
+import { useLanguage } from './context/LanguageContext';
 
 import { AlertTriangle, WifiOff, RefreshCw } from 'lucide-react';
 
 export default function App() {
+  const { lang, setLang, t } = useLanguage();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [businesses, setBusinesses] = useState([]);
-  const [currentBizId, setCurrentBizId] = useState(1);
-  const [dashboard, setDashboard] = useState(null);
-  const [queue, setQueue] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [demoDate, setDemoDate] = useState('');
+  const [currentBizId, setCurrentBizId] = useState(getBusinessId);
+  const [dashboard, setDashboard] = useState(() => {
+    try {
+      const s = localStorage.getItem('vaada_cached_dash');
+      if (s) return JSON.parse(s);
+    } catch (e) {}
+    return null;
+  });
+  const [queue, setQueue] = useState(() => {
+    try {
+      const s = localStorage.getItem('vaada_cached_queue');
+      if (s) return JSON.parse(s);
+    } catch (e) {}
+    return [];
+  });
+  const [events, setEvents] = useState(() => {
+    try {
+      const s = localStorage.getItem('vaada_cached_events');
+      if (s) return JSON.parse(s);
+    } catch (e) {}
+    return [];
+  });
+  const [demoDate, setDemoDate] = useState(() => localStorage.getItem('vaada_cached_demo_date') || '');
   const [brokenPromises, setBrokenPromises] = useState([]);
-  const [lang, setLang] = useState('EN');
 
   // Modals
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -87,6 +107,12 @@ export default function App() {
       setEvents(evRes.data || []);
       setBrokenPromises(promRes.data?.items || []);
       setIsBackendOffline(false);
+      try {
+        localStorage.setItem('vaada_cached_dash', JSON.stringify(dashRes.data));
+        localStorage.setItem('vaada_cached_queue', JSON.stringify(qRes.data || []));
+        localStorage.setItem('vaada_cached_events', JSON.stringify(evRes.data || []));
+        localStorage.setItem('vaada_cached_demo_date', ddRes.data?.date || '');
+      } catch (e) {}
     } catch (err) {
       console.error('Core refresh failed', err);
       setIsBackendOffline(true);
@@ -199,6 +225,13 @@ export default function App() {
                 />
               )}
 
+              {currentPage === 'voice-agent' && (
+                <VoiceAgentPage
+                  onRefreshAll={refreshCore}
+                  onNavigate={setCurrentPage}
+                />
+              )}
+
               {currentPage === 'queue' && (
                 <QueuePage
                   queue={queue}
@@ -208,18 +241,21 @@ export default function App() {
 
               {currentPage === 'customers' && (
                 <CustomersPage
+                  currentBizId={currentBizId}
                   onSelectCustomer={(id) => setSelectedCustomerId(id)}
                 />
               )}
 
               {currentPage === 'invoices' && (
                 <InvoicesPage
+                  currentBizId={currentBizId}
                   onSelectInvoice={(id) => setSelectedInvoiceId(id)}
                 />
               )}
 
               {currentPage === 'promises' && (
                 <PromisesPage
+                  currentBizId={currentBizId}
                   onSelectCustomer={(id) => setSelectedCustomerId(id)}
                   onSelectInvoice={(id) => setSelectedInvoiceId(id)}
                 />

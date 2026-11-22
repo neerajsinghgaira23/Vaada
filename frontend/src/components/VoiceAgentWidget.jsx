@@ -1,56 +1,163 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Mic, 
-  MicOff, 
-  Send, 
-  Volume2, 
-  VolumeX, 
-  CheckCircle2, 
-  XCircle, 
-  ExternalLink, 
-  DollarSign, 
-  Copy, 
-  Check, 
-  Sparkles, 
-  Bot, 
-  User, 
+import {
+  Mic,
+  MicOff,
+  Send,
+  Volume2,
+  VolumeX,
+  CheckCircle2,
+  XCircle,
+  ExternalLink,
+  DollarSign,
+  Copy,
+  Check,
+  Sparkles,
+  Bot,
+  User,
   Loader2,
-  RefreshCw
+  Radio,
+  RotateCcw,
+  Zap,
+  PlayCircle
 } from 'lucide-react';
 import { sendVoiceTurn, sendVoiceText, simulatePaid } from '../api';
 import { fmtMoney } from './Badges';
+import { useLanguage } from '../context/LanguageContext';
+
+const INITIAL_DEMO_CONVERSATION = [
+  {
+    id: 'demo-1',
+    role: 'user',
+    text: 'Sunil Cloth House ka aaj ka poora hisaab aur overdue kitna hai?',
+  },
+  {
+    id: 'demo-2',
+    role: 'assistant',
+    text: 'Namaste Sunil ji! Aapke shop ka kul outstanding ₹37,500 hai, jisme se ₹23,000 overdue ho chuka hai. Ab tak kul ₹12,000 recover ho chuka hai.',
+  },
+  {
+    id: 'demo-3',
+    role: 'user',
+    text: 'Kisko pehle call karna chahiye recovery ke liye?',
+  },
+  {
+    id: 'demo-4',
+    role: 'assistant',
+    text: 'Aapko sabse pehle Farooq Traders ko call karna chahiye kyunki pichle hafte unhone ₹3,000 ka vaada toda tha. Uske baad Rahul Enterprises ko contact karein jo Quick Win hain (Score 78) aur jaldi payment clear kar denge.',
+  },
+  {
+    id: 'demo-5',
+    role: 'user',
+    text: 'Theek hai, Rahul Enterprises se ₹2500 ka payment link bana do.',
+  },
+  {
+    id: 'demo-6',
+    role: 'assistant',
+    text: 'Rahul Enterprises ke liye ₹2,500 ka Cashfree payment link banayein? Kripya confirm karein.',
+    action: {
+      type: 'pending',
+      status: 'awaiting_confirmation',
+      merchant: 'Rahul Enterprises',
+      amount: 2500,
+      direction: 'collect',
+    },
+  },
+  {
+    id: 'demo-7',
+    role: 'user',
+    text: 'Haan, bhej do.',
+  },
+  {
+    id: 'demo-8',
+    role: 'assistant',
+    text: 'Badhai ho! Rahul Enterprises ke liye ₹2,500 ka Cashfree payment link ban gaya hai. Link customer ke saath share karne ke liye taiyaar hai.',
+    action: {
+      type: 'collect',
+      status: 'link_created',
+      merchant: 'Rahul Enterprises',
+      amount: 2500,
+      invoice_id: 1,
+      link_url: 'https://sandbox.cashfree.com/pg/links/vda_rahul_demo_2500',
+      reference: 'cf_link_rahul_2500',
+    },
+  },
+];
 
 export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
+  const { lang, t } = useLanguage();
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [liveTranscript, setLiveTranscript] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [languageCode, setLanguageCode] = useState('hi-IN');
+  const [languageCode, setLanguageCode] = useState(() => {
+    if (lang === 'HI') return 'hi-IN';
+    if (lang === 'KN') return 'kn-IN';
+    return 'en-IN';
+  });
   const [textInput, setTextInput] = useState('');
-  const [messages, setMessages] = useState([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text: 'Namaste! Main Vaada ka Sarvam Voice Agent hoon. Aap bol sakte hain: "Rahul Enterprises se 2500 ka payment link banao" ya "Kaun se customers pending hain?"',
-      audio: '',
-      action: null,
+
+  // Sync with global language toggle (EN / HI / KN)
+  useEffect(() => {
+    if (lang === 'HI') setLanguageCode('hi-IN');
+    else if (lang === 'KN') setLanguageCode('kn-IN');
+    else if (lang === 'EN') setLanguageCode('en-IN');
+  }, [lang]);
+
+  // Persist conversation across page refreshes and tab switches
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vaada_voice_agent_history');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) { }
+    return INITIAL_DEMO_CONVERSATION;
+  });
+
+  const [sessionId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vaada_voice_agent_session');
+      if (saved) return saved;
+      const newId = 'sess_' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('vaada_voice_agent_session', newId);
+      return newId;
+    } catch (e) {
+      return 'sess_default';
     }
-  ]);
-  const [sessionId] = useState(() => 'sess_' + Math.random().toString(36).substring(2, 9));
+  });
+
   const [linkCopied, setLinkCopied] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
 
+  // Sync messages to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('vaada_voice_agent_history', JSON.stringify(messages));
+    } catch (e) { }
+  }, [messages]);
+
+  const handleResetChat = () => {
+    setMessages(INITIAL_DEMO_CONVERSATION);
+    try {
+      localStorage.setItem('vaada_voice_agent_history', JSON.stringify(INITIAL_DEMO_CONVERSATION));
+    } catch (e) { }
+  };
+
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const recognitionRef = useRef(null);
   const timerRef = useRef(null);
   const audioPlayerRef = useRef(null);
   const chatScrollRef = useRef(null);
+  const finalTranscriptRef = useRef('');
 
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [messages, isProcessing]);
+  }, [messages, isProcessing, liveTranscript]);
 
   // Audio Playback
   const playAudioBase64 = (b64) => {
@@ -62,15 +169,52 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
       const audioUrl = `data:audio/wav;base64,${b64}`;
       const audio = new Audio(audioUrl);
       audioPlayerRef.current = audio;
-      audio.play().catch((err) => console.log('Audio autoplay prevented:', err));
+      audio.play().catch((err) => console.log('Audio autoplay notice:', err));
     } catch (e) {
       console.warn('Audio playback error', e);
     }
   };
 
-  // Start Mic Recording
+  // Start Mic Recording & Live Speech Recognition
   const startRecording = async () => {
     try {
+      setLiveTranscript('');
+      finalTranscriptRef.current = '';
+
+      // 1. Browser Live Speech Recognition (stream words as spoken)
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        try {
+          const recognition = new SpeechRecognition();
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.lang = languageCode === 'hi-IN' ? 'hi-IN' : languageCode === 'en-IN' ? 'en-IN' : languageCode;
+
+          recognition.onresult = (event) => {
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const transcriptPiece = event.results[i][0].transcript;
+              interim += transcriptPiece;
+            }
+            if (interim.trim()) {
+              setLiveTranscript(interim);
+              finalTranscriptRef.current = interim;
+              setTextInput(interim);
+            }
+          };
+
+          recognition.onerror = (e) => {
+            console.warn('SpeechRecognition interim event:', e.error);
+          };
+
+          recognition.start();
+          recognitionRef.current = recognition;
+        } catch (e) {
+          console.warn('Speech recognition init error:', e);
+        }
+      }
+
+      // 2. MediaRecorder for high-fidelity audio bytes
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
       const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
@@ -85,7 +229,13 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
       recorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         stream.getTracks().forEach((track) => track.stop());
-        await handleAudioUpload(audioBlob);
+
+        const capturedText = finalTranscriptRef.current.trim();
+        if (capturedText) {
+          await handleTextSubmit(capturedText);
+        } else {
+          await handleAudioUpload(audioBlob);
+        }
       };
 
       recorder.start();
@@ -102,6 +252,11 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
 
   // Stop Mic Recording
   const stopRecording = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) { }
+    }
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -109,7 +264,7 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
     }
   };
 
-  // Process Audio
+  // Process Audio Upload
   const handleAudioUpload = async (blob) => {
     setIsProcessing(true);
     const formData = new FormData();
@@ -136,6 +291,7 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
       ]);
     } finally {
       setIsProcessing(false);
+      setLiveTranscript('');
     }
   };
 
@@ -145,6 +301,7 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
     if (!q || isProcessing) return;
 
     setTextInput('');
+    setLiveTranscript('');
     setIsProcessing(true);
 
     // Optimistic user message
@@ -249,39 +406,56 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
     }
   };
 
+  const handleResetDemo = () => {
+    setMessages(INITIAL_DEMO_CONVERSATION);
+    try {
+      localStorage.setItem('vaada_voice_agent_history', JSON.stringify(INITIAL_DEMO_CONVERSATION));
+    } catch (e) { }
+  };
+
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-[#0e1f2f] text-white rounded-3xl p-5 border border-slate-700/60 shadow-xl overflow-hidden relative">
-      {/* Decorative Glow */}
-      <div className="absolute -top-16 -right-16 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="bg-white text-slate-800 rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-md overflow-hidden relative">
+      {/* Decorative Background Glows */}
+      <div className="absolute -top-16 -right-16 w-48 h-48 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3 mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-teal-500/20 border border-teal-500/40 text-teal-400 flex items-center justify-center shadow-inner">
+          <div className="w-9 h-9 rounded-xl bg-teal-50 border border-teal-200 text-teal-700 flex items-center justify-center shadow-xs">
             <Bot size={20} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-black text-sm text-white tracking-tight">Sarvam Voice Agent</h3>
-              <span className="text-[10px] bg-teal-500/20 border border-teal-500/30 text-teal-300 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <h3 className="font-black text-sm text-slate-900 tracking-tight">{t('agent.headerTitle')}</h3>
+              <span className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
                 <Sparkles size={10} />
-                Live AI
+                {t('agent.liveBadge')}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">
-              Speak or type to create Cashfree payment links in Indian languages
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {t('agent.headerSubtitle')}
             </p>
           </div>
         </div>
 
         {/* Controls */}
         <div className="flex items-center gap-2">
+          {/* Reset to Demo Story */}
+          <button
+            onClick={handleResetDemo}
+            title="Reset to Demo Conversation"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+          >
+            <RotateCcw size={13} />
+            {t('agent.resetDemo')}
+          </button>
+
           {/* Language Selector */}
           <select
             value={languageCode}
             onChange={(e) => setLanguageCode(e.target.value)}
-            className="bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 outline-none font-medium hover:border-slate-600 transition-colors"
+            className="bg-slate-50 border border-slate-200 text-xs text-slate-700 rounded-lg px-2.5 py-1.5 outline-none font-medium hover:border-slate-300 transition-colors cursor-pointer"
           >
             <option value="hi-IN">हिन्दी (Hindi)</option>
             <option value="en-IN">English</option>
@@ -297,41 +471,127 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
           <button
             onClick={() => setAudioEnabled(!audioEnabled)}
             title={audioEnabled ? 'Voice output on' : 'Voice output muted'}
-            className="p-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 transition-colors"
+            className="p-1.5 rounded-lg bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
           >
-            {audioEnabled ? <Volume2 size={15} className="text-teal-400" /> : <VolumeX size={15} />}
+            {audioEnabled ? <Volume2 size={15} className="text-teal-700" /> : <VolumeX size={15} />}
           </button>
         </div>
       </div>
 
+      {/* One-Click Demo Action Scenarios Strip */}
+      <div className="mb-4 bg-slate-50/80 border border-slate-200 rounded-2xl p-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] font-bold text-teal-800 uppercase tracking-wider flex items-center gap-1">
+            <Zap size={13} className="text-teal-700" />
+            Merchant Voice Action Scenarios (Click to test live):
+          </span>
+          <span className="text-[10px] text-slate-500 font-medium">Understands natural voice</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          {[
+            {
+              title: '1. Create Payment Link',
+              prompt: 'Rahul Enterprises se 2500 rupaye ka payment link bana do',
+              subtitle: 'Executes Cashfree /pg/links',
+              badge: 'Cashfree Action',
+              color: 'border-teal-200 bg-white hover:bg-teal-50/50 text-slate-700 hover:border-teal-300',
+              badgeColor: 'bg-teal-50 text-teal-700 border border-teal-200',
+            },
+            {
+              title: '2. Recovery Advice',
+              prompt: 'Kisko pehle call karna chahiye recovery ke liye?',
+              subtitle: 'Analyzes broken promises & urgency',
+              badge: 'Smart Strategy',
+              color: 'border-amber-200 bg-white hover:bg-amber-50/50 text-slate-700 hover:border-amber-300',
+              badgeColor: 'bg-amber-50 text-amber-700 border border-amber-200',
+            },
+            {
+              title: '3. Shop Financial Summary',
+              prompt: 'Sunil Cloth House ka aaj ka poora hisaab batao',
+              subtitle: 'Reads live outstanding & overdue',
+              badge: 'Live Numbers',
+              color: 'border-blue-200 bg-white hover:bg-blue-50/50 text-slate-700 hover:border-blue-300',
+              badgeColor: 'bg-blue-50 text-blue-700 border border-blue-200',
+            },
+            {
+              title: '4. Draft Firm Reminder',
+              prompt: 'Amit Stores ke liye firm reminder draft karo',
+              subtitle: 'Generates tone-calibrated text',
+              badge: 'Reminder Copy',
+              color: 'border-rose-200 bg-white hover:bg-rose-50/50 text-slate-700 hover:border-rose-300',
+              badgeColor: 'bg-rose-50 text-rose-700 border border-rose-200',
+            },
+          ].map((item, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleTextSubmit(item.prompt)}
+              className={`text-left p-2.5 rounded-xl border ${item.color} shadow-2xs transition-all group flex flex-col justify-between cursor-pointer`}
+            >
+              <div>
+                <div className="flex items-center justify-between text-[10px] font-bold mb-1">
+                  <span className="text-slate-900 group-hover:text-teal-700 transition-colors">{item.title}</span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${item.badgeColor}`}>{item.badge}</span>
+                </div>
+                <p className="text-[11px] font-medium text-slate-600 line-clamp-1 italic">
+                  "{item.prompt}"
+                </p>
+              </div>
+              <span className="text-[9px] text-slate-400 mt-1 block">
+                {item.subtitle}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Live Speech Recognition Banner (Shows text as you speak) */}
+      {isRecording && (
+        <div className="bg-teal-50 border border-teal-200 rounded-2xl p-3.5 mb-3.5 shadow-sm flex items-start gap-3 animate-fadeIn">
+          <div className="w-7 h-7 rounded-lg bg-rose-600 text-white flex items-center justify-center shrink-0 mt-0.5 animate-pulse">
+            <Radio size={15} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                Live Speech Detected ({recordingSeconds}s)
+              </span>
+              <span className="text-[10px] text-slate-500">Stop speaking to send</span>
+            </div>
+            <p className="text-sm font-semibold text-slate-900 tracking-wide leading-relaxed">
+              {liveTranscript || 'Listening... speak whatever you want in your language...'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Chat Thread Container */}
-      <div 
+      <div
         ref={chatScrollRef}
-        className="space-y-3.5 max-h-[320px] overflow-y-auto pr-2 mb-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
+        className="space-y-3.5 max-h-[360px] overflow-y-auto p-3.5 bg-slate-50/70 border border-slate-200/80 rounded-2xl mb-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"
       >
         {messages.map((m) => (
           <div key={m.id} className="space-y-2">
             <div className={`flex items-start gap-2.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {m.role === 'assistant' && (
-                <div className="w-6 h-6 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0 text-xs font-bold mt-0.5">
+                <div className="w-7 h-7 rounded-xl bg-teal-700 text-white flex items-center justify-center shrink-0 text-xs font-black shadow-xs mt-0.5">
                   V
                 </div>
               )}
               <div
-                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed ${
-                  m.role === 'user'
-                    ? 'bg-teal-600 text-white font-medium rounded-br-2xs'
-                    : 'bg-slate-800/90 border border-slate-700/80 text-slate-200 rounded-bl-2xs'
-                }`}
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed shadow-xs ${m.role === 'user'
+                    ? 'bg-teal-700 text-white font-medium rounded-br-2xs'
+                    : 'bg-white border border-slate-200 text-slate-800 rounded-bl-2xs'
+                  }`}
               >
                 <div className="flex items-center justify-between gap-3 mb-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    {m.role === 'user' ? 'You' : 'Voice Agent'}
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${m.role === 'user' ? 'text-teal-200' : 'text-slate-400'}`}>
+                    {m.role === 'user' ? 'Sunil (Merchant)' : 'Vaada AI Agent'}
                   </span>
                   {m.audio && (
                     <button
                       onClick={() => playAudioBase64(m.audio)}
-                      className="text-teal-400 hover:text-teal-300 flex items-center gap-1 text-[10px] font-bold"
+                      className={`${m.role === 'user' ? 'text-teal-100 hover:text-white' : 'text-teal-700 hover:text-teal-800'} flex items-center gap-1 text-[10px] font-bold cursor-pointer`}
                     >
                       <Volume2 size={12} />
                       Play Voice
@@ -341,38 +601,38 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
                 <p className="whitespace-pre-line">{m.text}</p>
               </div>
               {m.role === 'user' && (
-                <div className="w-6 h-6 rounded-lg bg-slate-700 text-slate-300 flex items-center justify-center shrink-0 text-xs font-bold mt-0.5">
-                  <User size={13} />
+                <div className="w-7 h-7 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 text-xs font-bold shadow-xs mt-0.5">
+                  <User size={14} />
                 </div>
               )}
             </div>
 
             {/* Action Cards (Confirmation or Result) */}
             {m.action && (
-              <div className="ml-8 max-w-[85%]">
+              <div className="ml-9 max-w-[85%]">
                 {m.action.status === 'awaiting_confirmation' && (
-                  <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-3 text-xs space-y-2.5 backdrop-blur-xs">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-2.5 shadow-xs text-slate-800">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-amber-300 flex items-center gap-1.5">
-                        <Sparkles size={13} className="text-amber-400" />
-                        Confirmation Required
+                      <span className="font-bold text-amber-900 flex items-center gap-1.5">
+                        <Sparkles size={13} className="text-amber-600" />
+                        Confirmation Gate (Human in the Loop)
                       </span>
-                      <span className="font-mono text-amber-400 font-black">{fmtMoney(m.action.amount)}</span>
+                      <span className="font-mono text-amber-900 font-black">{fmtMoney(m.action.amount)}</span>
                     </div>
-                    <p className="text-slate-300">
-                      Target: <strong>{m.action.merchant}</strong> (Cashfree Payment Link)
+                    <p className="text-slate-700">
+                      Action: Create Cashfree Payment Link for <strong className="text-slate-900">{m.action.merchant}</strong>
                     </p>
-                    <div className="flex items-center gap-2 pt-1 border-t border-amber-500/20">
+                    <div className="flex items-center gap-2 pt-1 border-t border-amber-200/80">
                       <button
                         onClick={() => handleTextSubmit('haan')}
-                        className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1 transition-colors"
+                        className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1 transition-colors shadow-xs cursor-pointer"
                       >
                         <CheckCircle2 size={13} />
-                        Haan (Confirm & Create)
+                        Haan (Confirm & Create Link)
                       </button>
                       <button
                         onClick={() => handleTextSubmit('cancel')}
-                        className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1 transition-colors"
+                        className="py-1.5 px-3 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
                       >
                         <XCircle size={13} />
                         Cancel
@@ -382,20 +642,20 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
                 )}
 
                 {m.action.status === 'link_created' && (
-                  <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3 text-xs space-y-2.5 backdrop-blur-xs">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs space-y-2.5 shadow-xs text-slate-800">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-emerald-300 flex items-center gap-1.5">
-                        <CheckCircle2 size={13} className="text-emerald-400" />
-                        Cashfree Link Created!
+                      <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                        <CheckCircle2 size={13} className="text-emerald-600" />
+                        Cashfree Link Created Successfully!
                       </span>
-                      <span className="font-mono text-emerald-400 font-black">{fmtMoney(m.action.amount)}</span>
+                      <span className="font-mono text-emerald-900 font-black">{fmtMoney(m.action.amount)}</span>
                     </div>
-                    <div className="flex items-center gap-2 bg-slate-900/80 p-2 rounded-lg border border-slate-700">
+                    <div className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200">
                       <input
                         type="text"
                         readOnly
                         value={m.action.link_url}
-                        className="flex-1 bg-transparent text-[11px] font-mono text-slate-300 outline-none select-all truncate"
+                        className="flex-1 bg-transparent text-[11px] font-mono text-slate-700 outline-none select-all truncate"
                       />
                       <button
                         onClick={() => {
@@ -403,29 +663,27 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
                           setLinkCopied(true);
                           setTimeout(() => setLinkCopied(false), 2000);
                         }}
-                        className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[10px] font-semibold text-slate-200 transition-colors shrink-0"
+                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-[10px] font-semibold text-slate-700 transition-colors shrink-0 cursor-pointer"
                       >
-                        {linkCopied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                        {linkCopied ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
                       </button>
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-1">
                       <button
                         onClick={() => window.open(m.action.link_url, '_blank')}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs transition-colors"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs transition-colors shadow-2xs cursor-pointer"
                       >
                         <ExternalLink size={12} />
                         Open Link
                       </button>
-                      {m.action.invoice_id && (
-                        <button
-                          onClick={() => handleSimulatePayment(m.action.invoice_id, m.action.amount)}
-                          disabled={simulating}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors disabled:opacity-50"
-                        >
-                          <DollarSign size={12} />
-                          {simulating ? 'Recording...' : 'Simulate Paid'}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleSimulatePayment(m.action.invoice_id || 1, m.action.amount)}
+                        disabled={simulating}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
+                      >
+                        <DollarSign size={12} />
+                        {simulating ? 'Recording...' : 'Simulate Paid (Update KPIs)'}
+                      </button>
                     </div>
                   </div>
                 )}
@@ -435,46 +693,26 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
         ))}
 
         {isProcessing && (
-          <div className="flex items-center gap-2 text-xs text-teal-400 bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/60 animate-pulse">
-            <Loader2 size={14} className="animate-spin" />
-            <span>Sarvam AI processing voice command...</span>
+          <div className="flex items-center gap-2 text-xs text-teal-800 bg-teal-50 p-2.5 rounded-xl border border-teal-200 animate-pulse">
+            <Loader2 size={14} className="animate-spin text-teal-700" />
+            <span>Sarvam AI processing merchant command...</span>
           </div>
         )}
       </div>
 
-      {/* Suggested Quick Commands */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-3.5">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Try saying:</span>
-        {[
-          'Rahul Enterprises se 2500 ka payment link banao',
-          'Kaun kaun se customers pending hain?',
-          'Amit Stores ka kitna baaki hai?',
-          'Haan',
-        ].map((promptText) => (
-          <button
-            key={promptText}
-            onClick={() => handleTextSubmit(promptText)}
-            className="text-[10px] bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-300 px-2 py-1 rounded-md transition-colors truncate max-w-[220px]"
-          >
-            {promptText}
-          </button>
-        ))}
-      </div>
-
       {/* Voice & Text Input Bar */}
-      <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 rounded-2xl p-1.5 shadow-inner">
+      <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-2xl p-1.5 shadow-inner">
         {/* Big Mic Button */}
         <button
           onClick={isRecording ? stopRecording : startRecording}
           disabled={isProcessing}
-          className={`h-11 px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shrink-0 ${
-            isRecording
-              ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse shadow-lg shadow-rose-900/50'
-              : 'bg-teal-600 hover:bg-teal-500 text-white shadow-md shadow-teal-900/40'
-          }`}
+          className={`h-11 px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shrink-0 cursor-pointer ${isRecording
+              ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse shadow-md'
+              : 'bg-teal-700 hover:bg-teal-800 text-white shadow-xs'
+            }`}
         >
           {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
-          <span>{isRecording ? `Listening (${recordingSeconds}s)...` : 'Tap to Speak'}</span>
+          <span>{isRecording ? `Stop & Send (${recordingSeconds}s)` : t('agent.tapToSpeak')}</span>
         </button>
 
         {/* Text Input */}
@@ -483,16 +721,16 @@ export default function VoiceAgentWidget({ onRefreshAll, compact = false }) {
           value={textInput}
           onChange={(e) => setTextInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleTextSubmit()}
-          placeholder="Or type a voice command in Hindi / English..."
+          placeholder={t('agent.inputPlaceholder')}
           disabled={isRecording || isProcessing}
-          className="flex-1 bg-transparent text-xs text-white placeholder-slate-400 px-2.5 outline-none font-medium"
+          className="flex-1 bg-transparent text-xs text-slate-800 placeholder-slate-400 px-2.5 outline-none font-medium"
         />
 
         {/* Send Button */}
         <button
           onClick={() => handleTextSubmit()}
           disabled={!textInput.trim() || isProcessing}
-          className="w-9 h-9 rounded-xl bg-slate-700 hover:bg-teal-600 text-slate-300 hover:text-white flex items-center justify-center transition-colors shrink-0 disabled:opacity-40"
+          className="w-9 h-9 rounded-xl bg-teal-700 hover:bg-teal-800 text-white flex items-center justify-center transition-colors shrink-0 disabled:opacity-40 cursor-pointer shadow-xs"
         >
           <Send size={15} />
         </button>

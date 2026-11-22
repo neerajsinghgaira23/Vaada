@@ -8,11 +8,12 @@ from decimal import Decimal
 from typing import Optional
 import json
 import time
+from contextlib import asynccontextmanager
 
 try:
-    from backend.app.database import get_db
+    from backend.app.database import get_db, engine, AsyncSessionLocal
     from backend.app.models import (
-        Business, Customer, Invoice, Payment, Promise, Event, AppSettings, ReminderLog, PaymentLinkDispatch
+        Base, Business, Customer, Invoice, Payment, Promise, Event, AppSettings, ReminderLog, PaymentLinkDispatch
     )
     from backend.app.score import (
         compute_score, compute_chase_value, get_label, get_tone, build_why_line
@@ -21,9 +22,9 @@ try:
     from backend.app.cashfree import create_cashfree_link, verify_cashfree_signature
     from backend.app.payments import process_payment_record
 except ImportError:
-    from app.database import get_db
+    from app.database import get_db, engine, AsyncSessionLocal
     from app.models import (
-        Business, Customer, Invoice, Payment, Promise, Event, AppSettings, ReminderLog, PaymentLinkDispatch
+        Base, Business, Customer, Invoice, Payment, Promise, Event, AppSettings, ReminderLog, PaymentLinkDispatch
     )
     from app.score import (
         compute_score, compute_chase_value, get_label, get_tone, build_why_line
@@ -33,7 +34,26 @@ except ImportError:
     from app.payments import process_payment_record
 
 
-app = FastAPI(title="Vaada API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Ensure tables exist without dropping existing data
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # Seed ONLY when database has no businesses (fresh empty DB)
+    async with AsyncSessionLocal() as session:
+        b_res = await session.execute(select(func.count()).select_from(Business))
+        count = b_res.scalar() or 0
+        if count == 0:
+            try:
+                from backend.seed import seed
+            except ImportError:
+                from seed import seed
+            await seed(keep_businesses=False)
+    yield
+
+
+app = FastAPI(title="Vaada API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,13 +69,26 @@ def scoped_query(model, business_id: int):
     return select(model).where(model.business_id == business_id)
 
 
-async def get_business_id(x_business_id: Optional[str] = Header(None)) -> int:
-    if x_business_id is None:
-        raise HTTPException(status_code=400, detail="X-Business-Id header required")
-    try:
-        return int(x_business_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="X-Business-Id must be an integer")
+async def get_business_id(
+    x_business_id: Optional[str] = Header(None),
+) -> int:
+    biz_id = None
+    if x_business_id not in (None, "", "null", "undefined", "NaN"):
+        try:
+            biz_id = int(x_business_id)
+        except (ValueError, TypeError):
+            biz_id = None
+
+    async with AsyncSessionLocal() as session:
+        if biz_id is not None:
+            b_res = await session.execute(select(Business.id).where(Business.id == biz_id))
+            if b_res.scalar_one_or_none() is not None:
+                return biz_id
+
+        # Fallback to the first available business if sequence shifted or header missing
+        first_b = await session.execute(select(Business.id).order_by(Business.id.asc()).limit(1))
+        fallback = first_b.scalar_one_or_none()
+        return fallback if fallback is not None else (biz_id if biz_id is not None else 1)
 
 
 async def check_promises(db: AsyncSession, business_id: int, today: date):
@@ -1408,7 +1441,6 @@ async def voice_agent_turn(
     session_id: str = Form("default"),
     language_code: str = Form("hi-IN"),
     business_id: int = Depends(get_business_id),
-    db: AsyncSession = Depends(get_db),
 ):
     upload = file or audio
     if not upload:
@@ -1427,7 +1459,7 @@ async def voice_agent_turn(
         text=transcript,
         language_code=detected_lang,
         business_id=business_id,
-        db=db,
+        db=None,
     )
     return turn_res
 
@@ -1436,7 +1468,6 @@ async def voice_agent_turn(
 async def voice_agent_text(
     body: dict,
     business_id: int = Depends(get_business_id),
-    db: AsyncSession = Depends(get_db),
 ):
     text = body.get("text", "")
     session_id = body.get("session_id", "default")
@@ -1447,16 +1478,15 @@ async def voice_agent_text(
         text=text,
         language_code=language_code,
         business_id=business_id,
-        db=db,
+        db=None,
     )
 
 
 @app.get("/api/voice-agent/config")
 async def voice_agent_config(
     business_id: int = Depends(get_business_id),
-    db: AsyncSession = Depends(get_db),
 ):
-    merchants = await voice_agent_instance.get_merchants(business_id, db)
+    merchants = await voice_agent_instance.get_merchants(business_id)
     return {
         "accounts": merchants,
         "mock_mode": voice_agent_instance.s.mock,

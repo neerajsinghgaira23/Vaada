@@ -3,16 +3,29 @@ import { Search, UserPlus, Users, ArrowRight } from 'lucide-react';
 import { getCustomers } from '../api';
 import { fmtMoney, PriorityBadge, ToneDot } from '../components/Badges';
 
-export default function CustomersPage({ onSelectCustomer }) {
-  const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function CustomersPage({ onSelectCustomer, currentBizId }) {
+  const [customers, setCustomers] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vaada_cached_customers');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
 
   const loadData = () => {
     setLoading(true);
     getCustomers()
-      .then((res) => setCustomers(res.data || []))
+      .then((res) => {
+        const list = res.data || [];
+        setCustomers(list);
+        setError('');
+        try {
+          localStorage.setItem('vaada_cached_customers', JSON.stringify(list));
+        } catch (e) {}
+      })
       .catch((err) => {
         console.error('Failed to load customers', err);
         setError('Could not load customers list.');
@@ -22,7 +35,7 @@ export default function CustomersPage({ onSelectCustomer }) {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [currentBizId]);
 
   const filtered = customers.filter((c) => {
     if (!search.trim()) return true;
@@ -64,8 +77,14 @@ export default function CustomersPage({ onSelectCustomer }) {
         )}
 
         {error && (
-          <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-xs">
-            {error}
+          <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between">
+            <span>{error}</span>
+            <button
+              onClick={loadData}
+              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition-colors cursor-pointer"
+            >
+              Retry
+            </button>
           </div>
         )}
 

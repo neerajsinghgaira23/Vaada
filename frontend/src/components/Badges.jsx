@@ -28,20 +28,23 @@ export function PriorityBadge({ priority }) {
   const p = (priority || '').toLowerCase();
   if (p.includes('quick win') || p === 'quick win') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         Quick Win
       </span>
     );
   }
   if (p.includes('escalate') || p === 'escalate') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-300">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
         Escalate
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
       Follow Up
     </span>
   );
@@ -51,20 +54,20 @@ export function StatusBadge({ status }) {
   const s = (status || '').toLowerCase();
   if (s === 'paid' || s === 'kept') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
         {s === 'paid' ? 'Paid' : 'Kept'}
       </span>
     );
   }
   if (s === 'broken' || s === 'overdue') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
         {s === 'broken' ? 'Broken' : 'Overdue'}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
       {s === 'partial' ? 'Partial' : s === 'open' ? 'Open' : 'Unpaid'}
     </span>
   );

@@ -8,7 +8,8 @@ import {
   Clock, 
   MessageSquareText, 
   ListOrdered,
-  Calendar
+  Calendar,
+  Sparkles
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -24,6 +25,7 @@ import {
 } from 'recharts';
 import { fmtMoney, fmtDate, fmtTime, PriorityBadge, ToneDot, PromiseIcons, ActorBadge } from '../components/Badges';
 import VoiceAgentWidget from '../components/VoiceAgentWidget';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function DashboardPage({
   dashboard,
@@ -34,6 +36,7 @@ export default function DashboardPage({
   onAdvanceDays,
   onRefreshAll,
 }) {
+  const { t } = useLanguage();
   const kpi = dashboard || {};
 
   // Data for Collected vs Outstanding by Customer (Top 5 customers from queue)
@@ -60,10 +63,10 @@ export default function DashboardPage({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
-            Good morning, Welcome to Vaada
+            {t('dashboard.title')}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
-            Your collections, and the promises behind them.
+            {t('dashboard.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -72,14 +75,14 @@ export default function DashboardPage({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0f766e] text-white hover:bg-[#115e59] text-xs font-bold rounded-lg transition-colors shadow-xs"
           >
             <ListOrdered size={14} />
-            Chase Queue
+            {t('nav.queue')}
           </button>
           <button
             onClick={() => onAdvanceDays && onAdvanceDays(7)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold rounded-lg transition-colors border border-slate-200"
           >
             <Calendar size={14} className="text-teal-700" />
-            +7 Days Demo
+            {t('topbar.advance7d')}
           </button>
         </div>
       </div>
@@ -87,62 +90,87 @@ export default function DashboardPage({
       {/* 4 KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Outstanding */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-start gap-3.5">
-          <div className="p-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100">
-            <DollarSign size={20} />
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs card-hover flex items-start gap-3.5 relative overflow-hidden">
+          <div className="p-3 rounded-xl bg-blue-50 text-blue-700 border border-blue-100/80 shadow-2xs shrink-0">
+            <DollarSign size={22} />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Outstanding</p>
-            <p className="text-xl font-black text-slate-900 mt-0.5">{fmtMoney(kpi.outstanding)}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Across all open invoices</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t('dashboard.totalOutstanding')}</p>
+            <p className="text-2xl font-black text-slate-900 mt-1 tracking-tight">{fmtMoney(kpi.outstanding)}</p>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">{t('dashboard.totalOutstandingSub')}</p>
           </div>
         </div>
 
         {/* Overdue */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-start gap-3.5">
-          <div className="p-2.5 rounded-xl bg-rose-50 text-rose-700 border border-rose-100">
-            <AlertCircle size={20} />
+        <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-2xs card-hover flex items-start gap-3.5 relative overflow-hidden">
+          <div className="p-3 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 shadow-2xs shrink-0">
+            <AlertCircle size={22} />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Overdue Invoices</p>
-            <p className="text-xl font-black text-rose-600 mt-0.5">{fmtMoney(kpi.overdue)}</p>
-            <p className="text-[11px] text-rose-600 font-semibold mt-0.5">Needs immediate follow-up</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t('dashboard.overdueInvoices')}</p>
+            <p className="text-2xl font-black text-rose-600 mt-1 tracking-tight">{fmtMoney(kpi.overdue)}</p>
+            <p className="text-[11px] text-rose-600 font-bold mt-0.5">{t('dashboard.overdueSub')}</p>
           </div>
         </div>
 
         {/* Collected */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-start gap-3.5">
-          <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100">
-            <CheckCircle2 size={20} />
+        <div className="bg-white p-5 rounded-2xl border border-emerald-100 shadow-2xs card-hover flex items-start gap-3.5 relative overflow-hidden">
+          <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-2xs shrink-0">
+            <CheckCircle2 size={22} />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Collected</p>
-            <p className="text-xl font-black text-emerald-700 mt-0.5">{fmtMoney(kpi.collected)}</p>
-            <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">Total payments received</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t('dashboard.collected')}</p>
+            <p className="text-2xl font-black text-emerald-700 mt-1 tracking-tight">{fmtMoney(kpi.collected)}</p>
+            <p className="text-[11px] text-emerald-600 font-bold mt-0.5">{t('dashboard.collectedSub')}</p>
           </div>
         </div>
 
         {/* Promised This Week */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-start gap-3.5">
-          <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-100">
-            <Handshake size={20} />
+        <div className="bg-white p-5 rounded-2xl border border-amber-100 shadow-2xs card-hover flex items-start gap-3.5 relative overflow-hidden">
+          <div className="p-3 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 shadow-2xs shrink-0">
+            <Handshake size={22} />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Promised This Week</p>
-            <p className="text-xl font-black text-amber-600 mt-0.5">{fmtMoney(kpi.promised_this_week)}</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t('dashboard.promisedThisWeek')}</p>
+            <p className="text-2xl font-black text-amber-600 mt-1 tracking-tight">{fmtMoney(kpi.promised_this_week)}</p>
             {(kpi.risky_promised || kpi.risky_promises) > 0 ? (
-              <p className="text-[11px] font-semibold text-rose-600 mt-0.5">
-                ⚠️ {fmtMoney(kpi.risky_promised || kpi.risky_promises)} from risky customers
+              <p className="text-[11px] font-bold text-rose-600 mt-0.5">
+                ⚠️ {fmtMoney(kpi.risky_promised || kpi.risky_promises)} {t('dashboard.riskyAlert')}
               </p>
             ) : (
-              <p className="text-[11px] text-slate-400 mt-0.5">Due in the next 7 days</p>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">{t('dashboard.dueNext7')}</p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Sarvam AI & Cashfree Voice Agent */}
-      <VoiceAgentWidget onRefreshAll={onRefreshAll} />
+      {/* Vaada AI Quick-Launch Card */}
+      <div className="bg-gradient-to-r from-[#071626] via-[#092232] to-[#0c313f] border border-teal-500/40 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 shadow-lg shadow-teal-950/20 relative overflow-hidden group">
+        <div className="absolute top-0 right-1/4 w-64 h-32 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex items-center gap-4 relative z-10">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-teal-500/30 to-emerald-400/20 text-teal-300 flex items-center justify-center shrink-0 border border-teal-400/40 shadow-inner group-hover:scale-105 transition-transform">
+            <Sparkles size={24} className="animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-white font-extrabold text-base sm:text-lg tracking-tight">{t('dashboard.agentTitle')}</h3>
+              <span className="bg-teal-500/20 text-teal-300 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-teal-400/40 shadow-2xs">
+                Sarvam AI & Cashfree
+              </span>
+            </div>
+            <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl font-medium leading-relaxed">
+              {t('dashboard.agentDesc')}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => onNavigate('voice-agent')}
+          className="shrink-0 px-5 py-3 bg-gradient-to-r from-teal-500 to-teal-400 hover:from-teal-400 hover:to-teal-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md shadow-teal-500/25 transition-all flex items-center gap-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98] relative z-10"
+        >
+          <span>{t('dashboard.openAgent')}</span>
+          <ArrowRight size={16} />
+        </button>
+      </div>
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

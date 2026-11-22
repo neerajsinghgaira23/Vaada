@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { searchAll, advanceDemoDate } from '../api';
 import { fmtDate, fmtMoney } from './Badges';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function TopBar({
   businesses = [],
@@ -29,6 +30,8 @@ export default function TopBar({
   onSelectCustomer,
   onSelectInvoice,
 }) {
+  const { lang: ctxLang, setLang: setCtxLang, t } = useLanguage();
+  const activeLang = lang || ctxLang;
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -98,12 +101,12 @@ export default function TopBar({
   const currentBiz = businesses.find(b => b.id === currentBizId) || businesses[0];
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-30 px-4 py-2.5 flex items-center justify-between gap-3 shadow-xs">
+    <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/90 sticky top-0 z-30 px-5 py-2.5 flex items-center justify-between gap-4 shadow-2xs transition-all">
       {/* Left: Mobile Toggle & Search Bar */}
       <div className="flex items-center gap-3 flex-1 max-w-lg">
         <button
           onClick={onOpenMobileSidebar}
-          className="md:hidden text-slate-600 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100"
+          className="md:hidden text-slate-600 hover:text-slate-900 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
           aria-label="Open navigation"
         >
           <Menu size={20} />
@@ -111,18 +114,22 @@ export default function TopBar({
 
         {/* Search Input */}
         <div ref={searchRef} className="relative flex-1">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="relative group">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-700 transition-colors" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => query.trim() && setShowSearchDropdown(true)}
-              placeholder="Search customers or invoice #..."
-              className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm rounded-lg pl-9 pr-3 py-1.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0f766e] focus:border-transparent transition-all"
+              placeholder={t('topbar.searchPlaceholder')}
+              className="w-full bg-slate-50/80 hover:bg-slate-100/70 border border-slate-200/90 text-slate-800 text-xs sm:text-sm rounded-xl pl-9 pr-12 py-1.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition-all shadow-inner"
             />
-            {isSearching && (
+            {isSearching ? (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">...</span>
+            ) : (
+              <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400 bg-white border border-slate-200/80 px-1.5 py-0.5 rounded shadow-2xs pointer-events-none">
+                ⌘K
+              </kbd>
             )}
           </div>
 
@@ -229,14 +236,19 @@ export default function TopBar({
           </button>
         </div>
 
-        {/* Language Toggle (EN / HI / KN visual only) */}
-        <div className="hidden sm:flex border border-slate-200 rounded-lg overflow-hidden text-xs font-bold shadow-2xs">
+        {/* Language Toggle (EN / HI / KN instant switch) */}
+        <div className="hidden sm:flex bg-slate-100/90 border border-slate-200/80 p-0.5 rounded-xl text-xs font-bold shadow-2xs">
           {['EN', 'HI', 'KN'].map((l) => (
             <button
               key={l}
-              onClick={() => onLangChange(l)}
-              className={`px-2 py-1 transition-colors ${
-                lang === l ? 'bg-[#0f766e] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+              onClick={() => {
+                setCtxLang(l);
+                if (onLangChange) onLangChange(l);
+              }}
+              className={`px-2.5 py-1 rounded-lg transition-all duration-150 cursor-pointer ${
+                activeLang === l
+                  ? 'bg-white text-teal-800 shadow-xs font-black'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
               }`}
             >
               {l}
@@ -298,10 +310,6 @@ export default function TopBar({
           )}
         </div>
 
-        {/* Environment Badge */}
-        <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-          Demo
-        </span>
 
         {/* Profile Avatar / Menu */}
         <div ref={profileRef} className="relative">

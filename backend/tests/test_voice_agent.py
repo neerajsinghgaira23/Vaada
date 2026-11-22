@@ -123,4 +123,5 @@ async def test_voice_agent_list_and_cancel():
             },
         )
         assert res_cancel.status_code == 200
-        assert "Radd" in res_cancel.json()["reply"] or "cancel" in res_cancel.json()["reply"].lower()
+        reply_lower = res_cancel.json()["reply"].lower()
+        assert "radd" in reply_lower or "cancel" in reply_lower or "रद्द" in res_cancel.json()["reply"]

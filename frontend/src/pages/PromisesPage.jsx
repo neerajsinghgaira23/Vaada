@@ -3,27 +3,42 @@ import { Handshake, CheckCircle2, AlertTriangle, Clock, ArrowRight } from 'lucid
 import { getPromises } from '../api';
 import { fmtMoney, fmtDate, StatusBadge } from '../components/Badges';
 
-export default function PromisesPage({ onSelectCustomer, onSelectInvoice }) {
-  const [data, setData] = useState({ items: [], summary: {} });
+export default function PromisesPage({ onSelectCustomer, onSelectInvoice, currentBizId }) {
+  const [data, setData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vaada_cached_promises');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return { items: [], summary: {} };
+  });
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const loadPromises = () => {
     setLoading(true);
     const params = statusFilter !== 'ALL' ? { status: statusFilter.toLowerCase() } : {};
     getPromises(params)
-      .then((res) => setData(res.data))
+      .then((res) => {
+        const payload = res.data || { items: [], summary: {} };
+        setData(payload);
+        setError('');
+        try {
+          localStorage.setItem('vaada_cached_promises', JSON.stringify(payload));
+        } catch (e) {}
+      })
       .catch((err) => {
         console.error('Failed to load promises', err);
-        setError('Could not load promises.');
+        if (!localStorage.getItem('vaada_cached_promises')) {
+          setError('Could not load promises.');
+        }
       })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     loadPromises();
-  }, [statusFilter]);
+  }, [statusFilter, currentBizId]);
 
   const summary = data.summary || {};
 

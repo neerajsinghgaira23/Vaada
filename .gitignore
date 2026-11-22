@@ -46,6 +46,7 @@ frontend/dist/
 # Database & logs
 *.log
 pgdata/
+cashfree-voice-agent/
 
 # OS / Editor
 .DS_Store
